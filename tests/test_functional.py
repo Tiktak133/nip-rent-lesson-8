@@ -1,5 +1,6 @@
-from src.models import Bill, Parameters, TenantBlacklistEntry, TenantSettlement, ApartmentSettlement, Transfer
+from src.models import Bill, Parameters, TenantBlacklistEntry, TenantSettlement, ApartmentSettlement, Transfer, ApartmentEvent
 from src.manager import Manager
+import pytest
 
 
 def test_settlement_due_between_tanants_and_apartment():
@@ -144,4 +145,50 @@ def test_transfer_valid_with_tenant_agreement():
 
     is_valid = manager.check_transfers_tenant()
     assert is_valid == False
+
+
+def test_generate_apartment_events_report_event_details():
+    manager = Manager(Parameters())
+    manager.load_additional_data()
+    
+    events = manager.generate_apartment_events_report('apart-polanka', only_unsolved=False)
+    
+    assert len(events) > 0
+    
+    for event in events:
+        assert hasattr(event, 'date')
+        assert hasattr(event, 'apartment')
+        assert hasattr(event, 'description')
+        assert hasattr(event, 'solved')
+        assert event.apartment == 'apart-polanka'
+        assert isinstance(event.solved, bool)
+        assert isinstance(event.description, str)
+
+
+def test_get_settlement_all_scenarios():
+    manager = Manager(Parameters())
+    
+    with pytest.raises(ValueError) as excinfo:
+        manager.get_settlement('apart-polanka', 2025, 0)
+    assert "Month must be between 1 and 12" in str(excinfo.value)
+    
+    with pytest.raises(ValueError) as excinfo:
+        manager.get_settlement('apart-polanka', 2025, 13)
+    assert "Month must be between 1 and 12" in str(excinfo.value)
+    
+    result = manager.get_settlement('invalid-apartment-key', 2025, 1)
+    assert result is None
+    
+    result = manager.get_settlement('apart-polanka', 2025, 3)
+    assert result is not None
+    assert isinstance(result, ApartmentSettlement)
+    assert result.total_due_pln == 0.0
+    
+    result = manager.get_settlement('apart-polanka', 2025, 1)
+    assert result is not None
+    assert isinstance(result, ApartmentSettlement)
+    assert result.apartment == 'apart-polanka'
+    assert result.year == 2025
+    assert result.month == 1
+    assert result.total_due_pln > 0.0
 
